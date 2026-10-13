@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import Login from './pages/Login';
+import LandingPage from './pages/LandingPage';
 import Dashboard from './pages/Dashboard';
 import { SettingsPage } from './pages/Settings';
 import { TicketsPage } from './pages/TicketsPage';
@@ -79,9 +80,10 @@ export default function App() {
         }}
       />
       <Routes>
-        <Route path="/login" element={<Login onLogin={() => window.location.href = '/'} />} />
+        <Route path="/" element={<LandingPage />} />
+        <Route path="/login" element={<Login onLogin={() => window.location.href = '/dashboard'} />} />
         <Route path="/scanner" element={<Scanner />} />
-        <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+        <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
         <Route path="/tickets" element={<ProtectedRoute><TicketsPage /></ProtectedRoute>} />
         <Route path="/authorized" element={<ProtectedRoute><AuthorizedTicketsPage /></ProtectedRoute>} />
         <Route path="/scanner-devices" element={<ProtectedRoute><ScannerDevicesPage /></ProtectedRoute>} />
