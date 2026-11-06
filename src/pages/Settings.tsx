@@ -1,34 +1,24 @@
-import { useState, useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
-  Save,
-  RotateCcw,
-  AlertTriangle,
-  Upload,
-  Palette,
-  Moon,
-  Sun,
-  Type,
-  Hash,
-  User,
   Building2,
-  ToggleLeft,
-  ToggleRight,
+  Download,
+  Moon,
+  RotateCcw,
+  Save,
+  Sun,
+  Upload,
 } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
+import { Layout } from '../components/layout/Layout';
+import { PageHeader } from '../components/layout/PageHeader';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Badge } from '../components/ui/badge';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '../components/ui/select';
+import { Skeleton } from '../components/ui/skeleton';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { api } from '../lib/api';
-import { getSocket } from '../lib/socket';
+import { useTheme, type Theme } from '../lib/theme';
+import { cn } from '../lib/utils';
 import toast from 'react-hot-toast';
-import { Layout } from '../components/layout/Layout';
 
 export function SettingsPage() {
   return (
@@ -38,33 +28,101 @@ export function SettingsPage() {
   );
 }
 
+function Section({
+  title,
+  description,
+  children,
+  tone = 'default',
+}: {
+  title: string;
+  description: string;
+  children: React.ReactNode;
+  tone?: 'default' | 'danger';
+}) {
+  return (
+    <section className={cn('grid gap-6 border-t border-border pt-8 lg:grid-cols-[220px_minmax(0,1fr)]')}>
+      <div>
+        <h2 className={cn('font-display text-[1.3rem] font-medium leading-tight tracking-[-0.02em]', tone === 'danger' ? 'text-danger' : 'text-ink')}>
+          {title}
+        </h2>
+        <p className="mt-1.5 text-tiny leading-relaxed text-ink-secondary">{description}</p>
+      </div>
+      <div className="min-w-0">{children}</div>
+    </section>
+  );
+}
+
+function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
+  return (
+    <label className="block">
+      <span className="mb-1.5 block text-tiny font-medium text-ink">{label}</span>
+      {children}
+      {hint && <span className="mt-1 block text-[11px] text-ink-tertiary">{hint}</span>}
+    </label>
+  );
+}
+
+function ThemeChoice({ value, current, onSelect }: { value: Theme; current: Theme; onSelect: (t: Theme) => void }) {
+  const active = value === current;
+  return (
+    <button
+      type="button"
+      onClick={() => onSelect(value)}
+      aria-pressed={active}
+      className={cn(
+        'flex min-h-[76px] flex-1 items-center gap-3 rounded-sm border px-4 text-left transition-colors focus-visible:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus',
+        active ? 'border-ink bg-sunken' : 'border-border hover:border-border-strong'
+      )}
+    >
+      <span
+        className={cn(
+          'flex h-8 w-8 items-center justify-center rounded-sm border',
+          value === 'light' ? 'border-border bg-[#f4f0e6] text-[#12110e]' : 'border-border bg-[#12110e] text-[#f4f0e6]'
+        )}
+      >
+        {value === 'light' ? (
+          <Sun className="h-4 w-4" strokeWidth={1.7} aria-hidden="true" />
+        ) : (
+          <Moon className="h-4 w-4" strokeWidth={1.7} aria-hidden="true" />
+        )}
+      </span>
+      <span>
+        <span className="block text-small font-medium text-ink">{value === 'light' ? 'Paper' : 'Ink'}</span>
+        <span className="block text-[11px] text-ink-tertiary">{value === 'light' ? 'Warm daylight desk' : 'Low-light control room'}</span>
+      </span>
+    </button>
+  );
+}
+
 function SettingsContent() {
+  const { theme, setTheme } = useTheme();
   const [eventName, setEventName] = useState('');
   const [organizationName, setOrganizationName] = useState('');
   const [capacity, setCapacity] = useState('');
   const [defaultEntries, setDefaultEntries] = useState('');
   const [applyTo, setApplyTo] = useState('new');
   const [csvText, setCsvText] = useState('');
-  const [theme, setTheme] = useState('dark');
   const [loading, setLoading] = useState(true);
-
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    (async () => {
-      try {
-        const settings = await api.getSettings();
+    let mounted = true;
+    api
+      .getSettings()
+      .then((settings) => {
+        if (!mounted) return;
         setEventName(settings.eventName || '');
         setOrganizationName(settings.organizationName || '');
         setCapacity(settings.capacity || '');
         setDefaultEntries(settings.defaultEntries || '');
-        setTheme(settings.theme || 'dark');
-      } catch {
-        toast.error('Failed to load settings');
-      } finally {
-        setLoading(false);
-      }
-    })();
+      })
+      .catch(() => toast.error('Failed to load settings'))
+      .finally(() => {
+        if (mounted) setLoading(false);
+      });
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   const handleSaveEventSettings = async () => {
@@ -118,9 +176,6 @@ function SettingsContent() {
     }
   };
 
-  const handleExportCsv = () => window.open(api.exportCsv(), '_blank');
-  const handleExportHistoryCsv = () => window.open(api.exportHistoryCsv(), '_blank');
-
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -131,7 +186,7 @@ function SettingsContent() {
 
   const handleImport = async () => {
     if (!csvText) {
-      toast.error('Please select a CSV file first');
+      toast.error('Choose a CSV file first');
       return;
     }
     try {
@@ -144,269 +199,182 @@ function SettingsContent() {
     }
   };
 
-  const toggleTheme = async () => {
-    const next = theme === 'dark' ? 'light' : 'dark';
-    try {
-      await api.updateSettings({ theme: next });
-      setTheme(next);
-      toast.success(`Switched to ${next} mode`);
-    } catch {
-      toast.error('Failed to update theme');
-    }
+  const handleTheme = (next: Theme) => {
+    setTheme(next);
+    toast.success(next === 'dark' ? 'Ink theme on' : 'Paper theme on');
   };
 
   if (loading) {
     return (
-      <div className="p-6 space-y-6 max-w-4xl mx-auto">
-        {Array.from({ length: 4 }).map((_, i) => (
-          <Card key={i} className="border-0 bg-white/5 backdrop-blur-xl">
-            <CardContent className="p-6">
-              <div className="h-5 w-40 rounded bg-white/10 animate-pulse mb-4" />
+      <div className="max-w-4xl">
+        <Skeleton className="h-9 w-48" />
+        <Skeleton className="mt-3 h-4 w-80" />
+        <div className="mt-10 space-y-8">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="grid gap-6 border-t border-border pt-8 lg:grid-cols-[220px_1fr]">
+              <Skeleton className="h-5 w-32" />
               <div className="space-y-3">
-                <div className="h-10 rounded-lg bg-white/10 animate-pulse" />
-                <div className="h-10 rounded-lg bg-white/10 animate-pulse" />
+                <Skeleton className="h-11 w-full" />
+                <Skeleton className="h-11 w-full" />
               </div>
-            </CardContent>
-          </Card>
-        ))}
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="p-6 space-y-6 max-w-4xl mx-auto">
-      {/* Event Settings */}
-      <Card className="border-0 bg-white/5 backdrop-blur-xl">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-sm font-medium uppercase tracking-wider text-white/60">
-            <Building2 className="h-4 w-4 text-cyan-400" />
-            Event Settings
-          </CardTitle>
-          <CardDescription>Configure your event name and organization</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-white/80">Event Name</label>
-            <div className="relative">
-              <Type className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/30" />
+    <div className="max-w-4xl">
+      <PageHeader
+        eyebrow="Event setup"
+        title="Settings"
+        description="The event identity, capacity rules and data tools. Door policy lives under Authorisation."
+      />
+
+      <div className="space-y-8">
+        <Section title="Event" description="The name shown on the desk and the scanner, plus who runs the event.">
+          <div className="space-y-4">
+            <Field label="Event name">
               <Input
-                className="pl-10"
-                placeholder="Enter event name"
                 value={eventName}
                 onChange={(e) => setEventName(e.target.value)}
+                placeholder="St Mary's Christmas Concert"
               />
-            </div>
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-white/80">Organization Name</label>
-            <div className="relative">
-              <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/30" />
+            </Field>
+            <Field label="Organisation">
               <Input
-                className="pl-10"
-                placeholder="Enter organization name"
                 value={organizationName}
                 onChange={(e) => setOrganizationName(e.target.value)}
+                placeholder="St Mary's Parish"
               />
-            </div>
-          </div>
-          <Button onClick={handleSaveEventSettings} className="gap-2">
-            <Save className="h-4 w-4" />
-            Save Event Settings
-          </Button>
-        </CardContent>
-      </Card>
-
-      {/* Capacity Settings */}
-      <Card className="border-0 bg-white/5 backdrop-blur-xl">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-sm font-medium uppercase tracking-wider text-white/60">
-            <Hash className="h-4 w-4 text-cyan-400" />
-            Capacity Settings
-          </CardTitle>
-          <CardDescription>Set event capacity and default entries per ticket</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-white/80">Event Capacity</label>
-            <Input
-              type="number"
-              placeholder="Enter total capacity"
-              value={capacity}
-              onChange={(e) => setCapacity(e.target.value)}
-            />
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-white/80">Default Entries Per Ticket</label>
-            <Input
-              type="number"
-              placeholder="Enter default entries"
-              value={defaultEntries}
-              onChange={(e) => setDefaultEntries(e.target.value)}
-            />
-          </div>
-          <Button onClick={handleSaveCapacity} className="gap-2">
-            <Save className="h-4 w-4" />
-            Save Capacity Settings
-          </Button>
-        </CardContent>
-      </Card>
-
-      {/* Global Entry Update */}
-      <Card className="border-0 bg-white/5 backdrop-blur-xl">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-sm font-medium uppercase tracking-wider text-white/60">
-            <ToggleLeft className="h-4 w-4 text-cyan-400" />
-            Global Entry Update
-          </CardTitle>
-          <CardDescription>Update default entries for all tickets or only new ones</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-white/80">Default Entries</label>
-            <Input
-              type="number"
-              placeholder="Number of entries"
-              value={defaultEntries}
-              onChange={(e) => setDefaultEntries(e.target.value)}
-            />
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-white/80">Apply To</label>
-            <Select value={applyTo} onValueChange={setApplyTo}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Select scope" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="new">New Tickets Only</SelectItem>
-                <SelectItem value="all">All Tickets</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <Button onClick={handleUpdateDefaultEntries} className="gap-2">
-            <RotateCcw className="h-4 w-4" />
-            Update Default Entries
-          </Button>
-        </CardContent>
-      </Card>
-
-      {/* Reset Options */}
-      <Card className="border-0 bg-white/5 backdrop-blur-xl border-red-500/20">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-sm font-medium uppercase tracking-wider text-red-400">
-            <AlertTriangle className="h-4 w-4" />
-            Reset Options
-          </CardTitle>
-          <CardDescription>Dangerous operations that cannot be undone</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between p-4 rounded-lg bg-red-500/10 border border-red-500/20">
-            <div>
-              <p className="text-sm font-medium text-white">Reset All Tickets & Scans</p>
-              <p className="text-xs text-white/50 mt-1">Completely resets all ticket data and scan history</p>
-            </div>
-            <Button variant="destructive" onClick={handleResetAll} className="gap-2 shrink-0">
-              <RotateCcw className="h-4 w-4" />
-              Reset All
+            </Field>
+            <Button onClick={handleSaveEventSettings}>
+              <Save className="h-4 w-4" strokeWidth={1.8} aria-hidden="true" />
+              Save event settings
             </Button>
           </div>
-          <div className="flex items-center justify-between p-4 rounded-lg bg-amber-500/10 border border-amber-500/20">
-            <div>
-              <p className="text-sm font-medium text-white">Reset Scan History Only</p>
-              <p className="text-xs text-white/50 mt-1">Clears all scan records but keeps tickets intact</p>
-            </div>
-            <Button variant="warning" onClick={handleResetScans} className="gap-2 shrink-0">
-              <RotateCcw className="h-4 w-4" />
-              Clear Scans
+        </Section>
+
+        <Section title="Capacity" description="How many entries the venue allows, and the default each new ticket receives.">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Event capacity" hint="Total entries across the night.">
+              <Input type="number" min={0} inputMode="numeric" value={capacity} onChange={(e) => setCapacity(e.target.value)} placeholder="400" />
+            </Field>
+            <Field label="Default entries per ticket" hint="Applied when a ticket has no explicit value.">
+              <Input type="number" min={1} inputMode="numeric" value={defaultEntries} onChange={(e) => setDefaultEntries(e.target.value)} placeholder="2" />
+            </Field>
+          </div>
+          <Button variant="outline" className="mt-4" onClick={handleSaveCapacity}>
+            <Save className="h-4 w-4" strokeWidth={1.8} aria-hidden="true" />
+            Save capacity
+          </Button>
+        </Section>
+
+        <Section title="Entry rules" description="Change the default entry allowance without editing tickets one by one.">
+          <div className="grid gap-4 sm:grid-cols-[1fr_1fr]">
+            <Field label="Default entries">
+              <Input type="number" min={1} inputMode="numeric" value={defaultEntries} onChange={(e) => setDefaultEntries(e.target.value)} />
+            </Field>
+            <Field label="Apply to">
+              <Select value={applyTo} onValueChange={setApplyTo}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="new">New tickets only</SelectItem>
+                  <SelectItem value="all">All tickets</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
+          </div>
+          <Button variant="outline" className="mt-4" onClick={handleUpdateDefaultEntries}>
+            <RotateCcw className="h-4 w-4" strokeWidth={1.8} aria-hidden="true" />
+            Update default entries
+          </Button>
+        </Section>
+
+        <Section title="Appearance" description="The desk follows your choice; the scanner always uses the dark gate theme.">
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <ThemeChoice value="light" current={theme} onSelect={handleTheme} />
+            <ThemeChoice value="dark" current={theme} onSelect={handleTheme} />
+          </div>
+        </Section>
+
+        <Section title="Data" description="Export a copy for reconciliation, or bring in a new guest list from CSV.">
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" asChild>
+              <a href={api.exportCsv()}>
+                <Download className="h-4 w-4" strokeWidth={1.8} aria-hidden="true" />
+                Tickets CSV
+              </a>
+            </Button>
+            <Button variant="outline" asChild>
+              <a href={api.exportHistoryCsv()}>
+                <Download className="h-4 w-4" strokeWidth={1.8} aria-hidden="true" />
+                Scan history CSV
+              </a>
             </Button>
           </div>
-        </CardContent>
-      </Card>
 
-      {/* Export */}
-      <Card className="border-0 bg-white/5 backdrop-blur-xl">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-sm font-medium uppercase tracking-wider text-white/60">
-            <Upload className="h-4 w-4 text-cyan-400" />
-            Export Data
-          </CardTitle>
-          <CardDescription>Download your data as CSV files</CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-wrap gap-3">
-          <Button variant="outline" onClick={handleExportCsv} className="gap-2">
-            <Upload className="h-4 w-4" />
-            Download Tickets CSV
-          </Button>
-          <Button variant="outline" onClick={handleExportHistoryCsv} className="gap-2">
-            <Upload className="h-4 w-4" />
-            Download Scan History CSV
-          </Button>
-        </CardContent>
-      </Card>
-
-      {/* Import */}
-      <Card className="border-0 bg-white/5 backdrop-blur-xl">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-sm font-medium uppercase tracking-wider text-white/60">
-            <Upload className="h-4 w-4 text-cyan-400" />
-            Import Data
-          </CardTitle>
-          <CardDescription>Import tickets from a CSV file</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center gap-3">
+          <div className="mt-5 rounded-sm border border-dashed border-border-strong bg-sunken/30 p-4">
+            <label htmlFor="csv-file" className="mb-2 flex items-center gap-2 text-tiny font-medium text-ink">
+              <Upload className="h-4 w-4" strokeWidth={1.8} aria-hidden="true" />
+              Import guest list
+            </label>
             <input
               ref={fileInputRef}
+              id="csv-file"
               type="file"
-              accept=".csv"
+              accept=".csv,text/csv"
               onChange={handleFileChange}
-              className="text-sm text-white/60 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-white/10 file:text-white hover:file:bg-white/20 transition-colors cursor-pointer"
+              className="block w-full cursor-pointer text-tiny text-ink-secondary file:mr-3 file:cursor-pointer file:rounded-sm file:border file:border-border file:bg-surface file:px-3 file:py-2 file:text-tiny file:font-medium file:text-ink hover:file:border-border-strong"
             />
-            {csvText && <Badge variant="success">File loaded</Badge>}
-          </div>
-          <Button onClick={handleImport} disabled={!csvText} className="gap-2">
-            <Upload className="h-4 w-4" />
-            Import CSV
-          </Button>
-        </CardContent>
-      </Card>
-
-      {/* Theme */}
-      <Card className="border-0 bg-white/5 backdrop-blur-xl">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-sm font-medium uppercase tracking-wider text-white/60">
-            <Palette className="h-4 w-4 text-cyan-400" />
-            Theme
-          </CardTitle>
-          <CardDescription>Toggle between dark and light mode</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              {theme === 'dark' ? (
-                <Moon className="h-5 w-5 text-blue-400" />
-              ) : (
-                <Sun className="h-5 w-5 text-amber-400" />
-              )}
-              <span className="text-sm font-medium text-white">
-                {theme === 'dark' ? 'Dark Mode' : 'Light Mode'}
-              </span>
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+              {csvText && <Badge variant="success">File ready</Badge>}
+              <Button size="sm" onClick={handleImport} disabled={!csvText}>
+                <Upload className="h-3.5 w-3.5" strokeWidth={1.8} aria-hidden="true" />
+                Import CSV
+              </Button>
             </div>
-            <Button variant="outline" onClick={toggleTheme} className="gap-2 min-w-[120px]">
-              {theme === 'dark' ? (
-                <>
-                  <Sun className="h-4 w-4" />
-                  Light Mode
-                </>
-              ) : (
-                <>
-                  <Moon className="h-4 w-4" />
-                  Dark Mode
-                </>
-              )}
-            </Button>
           </div>
-        </CardContent>
-      </Card>
+        </Section>
+
+        <Section
+          title="Reset"
+          description="Irreversible operations. Both ask for confirmation before anything is deleted."
+          tone="danger"
+        >
+          <div className="space-y-3">
+            <div className="flex flex-col gap-3 rounded-sm border border-danger/25 bg-danger-soft/50 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-small font-medium text-ink">Reset all tickets and scans</p>
+                <p className="mt-0.5 text-tiny text-ink-secondary">Clears the guest list and every scan record.</p>
+              </div>
+              <Button variant="danger" size="sm" onClick={handleResetAll} className="shrink-0">
+                <RotateCcw className="h-3.5 w-3.5" strokeWidth={1.8} aria-hidden="true" />
+                Reset everything
+              </Button>
+            </div>
+
+            <div className="flex flex-col gap-3 rounded-sm border border-warning/25 bg-warning-soft/40 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-small font-medium text-ink">Clear scan history only</p>
+                <p className="mt-0.5 text-tiny text-ink-secondary">Keeps tickets and their entry counts.</p>
+              </div>
+              <Button variant="outline" size="sm" onClick={handleResetScans} className="shrink-0">
+                <RotateCcw className="h-3.5 w-3.5" strokeWidth={1.8} aria-hidden="true" />
+                Clear scans
+              </Button>
+            </div>
+          </div>
+        </Section>
+
+        <div className="flex items-center gap-2 border-t border-border pt-6 text-tiny text-ink-tertiary">
+          <Building2 className="h-3.5 w-3.5" strokeWidth={1.7} aria-hidden="true" />
+          Local event data. Export a CSV before resetting.
+        </div>
+      </div>
     </div>
   );
 }

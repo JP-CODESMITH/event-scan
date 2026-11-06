@@ -1,4 +1,50 @@
 const API_BASE = '/api';
+export function normalizeTicket(row: any) {
+  if (!row) return row;
+  return {
+    ...row,
+    ticketNumber: row.ticketNumber ?? row.ticket_number ?? '',
+    maxEntries: Number(row.maxEntries ?? row.max_entries ?? 0),
+    entriesUsed: Number(row.entriesUsed ?? row.entries_used ?? 0),
+    createdAt: row.createdAt ?? row.created_at ?? '',
+    updatedAt: row.updatedAt ?? row.updated_at ?? '',
+    authorized: Boolean(row.authorized),
+    authorizedBy: row.authorizedBy ?? row.authorized_by ?? '',
+    authorizationTime: row.authorizationTime ?? row.authorization_time ?? '',
+    authorizationNote: row.authorizationNote ?? row.authorization_note ?? '',
+  };
+}
+
+export function normalizeScan(row: any) {
+  if (!row) return row;
+  return {
+    ...row,
+    ticketNumber: row.ticketNumber ?? row.ticket_number ?? '',
+    entriesUsed: Number(row.entriesUsed ?? row.entries_used ?? 0),
+    remaining: Number(row.remaining ?? 0),
+    ticketName: row.ticketName ?? row.ticket_name ?? '',
+    ticketId: row.ticketId ?? row.ticket_id ?? null,
+  };
+}
+
+export function normalizeDevice(row: any) {
+  if (!row) return row;
+  return {
+    ...row,
+    deviceId: row.deviceId ?? row.device_id ?? '',
+    lastSeen: row.lastSeen ?? row.last_seen ?? '',
+    battery: Number(row.battery ?? 0),
+    online: Boolean(row.online),
+  };
+}
+
+function normalizeList(data: any, normalizer: (row: any) => any) {
+  if (Array.isArray(data)) return data.map(normalizer);
+  if (data && Array.isArray(data.items)) return { ...data, items: data.items.map(normalizer) };
+  if (data && Array.isArray(data.data)) return { ...data, data: data.data.map(normalizer) };
+  return data;
+}
+
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
@@ -14,15 +60,22 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 
 export const api = {
   getStats: () => request<any>('/stats'),
-  getTickets: (params?: { status?: string; page?: number; limit?: number }) => {
+  getTickets: async (params?: { status?: string; page?: number; limit?: number }) => {
     const q = new URLSearchParams();
     if (params?.status) q.set('status', params.status);
     if (params?.page) q.set('page', String(params.page));
     if (params?.limit) q.set('limit', String(params.limit));
-    return request<any>(`/tickets?${q}`);
+    return normalizeList(await request<any>(`/tickets?${q}`), normalizeTicket);
   },
-  getAllTickets: () => request<any>('/tickets/all'),
-  getTicket: (id: number) => request<any>(`/tickets/${id}`),
+  getAllTickets: async () => normalizeList(await request<any>('/tickets/all'), normalizeTicket),
+  getTicket: async (id: number) => {
+    const res = await request<any>(`/tickets/${id}`);
+    const ticket = normalizeTicket(res.data ?? res);
+    if (Array.isArray(ticket?.scanHistory)) {
+      ticket.scanHistory = ticket.scanHistory.map(normalizeScan);
+    }
+    return res.data ? { ...res, data: ticket } : ticket;
+  },
   updateTicket: (id: number, data: any) =>
     request<any>(`/tickets/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   resetTicket: (id: number) =>
@@ -37,24 +90,24 @@ export const api = {
     request<any>(`/tickets/${id}/decrease`, { method: 'POST' }),
   deleteTicket: (id: number) =>
     request<any>(`/tickets/${id}/delete`, { method: 'DELETE' }),
-  getScans: (params?: { page?: number; limit?: number }) => {
+  getScans: async (params?: { page?: number; limit?: number }) => {
     const q = new URLSearchParams();
     if (params?.page) q.set('page', String(params.page));
     if (params?.limit) q.set('limit', String(params.limit));
-    return request<any>(`/scans?${q}`);
+    return normalizeList(await request<any>(`/scans?${q}`), normalizeScan);
   },
-  getRecentScans: () => request<any>('/scans/recent'),
-  getScanHistory: (ticketNumber: string) =>
-    request<any>(`/scans/history?ticketNumber=${ticketNumber}`),
+  getRecentScans: async () => normalizeList(await request<any>('/scans/recent'), normalizeScan),
+  getScanHistory: async (ticketNumber: string) =>
+    normalizeList(await request<any>(`/scans/history?ticketNumber=${encodeURIComponent(ticketNumber)}`), normalizeScan),
   clearScans: () => request<any>('/scans/clear', { method: 'POST' }),
   getSettings: () => request<Record<string, string>>('/settings'),
   updateSettings: (data: any) =>
     request<any>('/settings', { method: 'PUT', body: JSON.stringify(data) }),
   updateDefaultEntries: (data: { defaultEntries: number; applyTo: string }) =>
     request<any>('/settings/default-entries', { method: 'POST', body: JSON.stringify(data) }),
-  search: (q: string) => request<any>(`/search?q=${encodeURIComponent(q)}`),
+  search: async (q: string) => normalizeList(await request<any>(`/search?q=${encodeURIComponent(q)}`), normalizeTicket),
   chartData: () => request<any>('/chart-data'),
-  scannerDevices: () => request<any>('/scanner-devices'),
+  scannerDevices: async () => normalizeList(await request<any>('/scanner-devices'), normalizeDevice),
   network: () => request<{ ip: string; port: number }>('/network'),
   login: (username: string, password: string) =>
     request<any>('/admin/login', { method: 'POST', body: JSON.stringify({ username, password }) }),

@@ -1,21 +1,18 @@
-import React from 'react';
 import {
-  LineChart,
-  Line,
-  BarChart,
+  Area,
+  AreaChart,
   Bar,
-  PieChart,
-  Pie,
+  BarChart,
+  CartesianGrid,
   Cell,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
   XAxis,
   YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  Legend,
 } from 'recharts';
-import { TrendingUp, PieChart as PieIcon, BarChart3, Activity } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
+import { Skeleton } from '../ui/skeleton';
 
 interface ChartData {
   hourlyEntries: Array<{ hour: string; count: number }>;
@@ -29,204 +26,208 @@ interface Props {
   data: ChartData | null;
 }
 
-const PIE_COLORS = ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444'];
+const axisStyle = {
+  fontFamily: 'IBM Plex Mono, monospace',
+  fontSize: 9,
+  fill: 'hsl(var(--ink-tertiary))',
+};
 
-function ChartSkeleton() {
-  return (
-    <Card className="border-0 bg-white/5 backdrop-blur-xl">
-      <CardHeader className="pb-3">
-        <div className="h-4 w-32 rounded bg-white/10 animate-pulse" />
-      </CardHeader>
-      <CardContent>
-        <div className="h-[300px] rounded-lg bg-white/5 animate-pulse" />
-      </CardContent>
-    </Card>
-  );
-}
-
-function CustomTooltip({ active, payload, label }: any) {
+function ChartTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="rounded-xl border border-white/10 bg-[rgba(15,15,35,0.9)] px-4 py-3 shadow-xl backdrop-blur-2xl">
-      <p className="text-xs text-white/50 mb-1">{label}</p>
+    <div className="rounded-sm border border-border-strong bg-raised px-3 py-2 shadow-float">
+      <p className="font-mono text-[9px] uppercase tracking-[0.1em] text-ink-tertiary">{label}</p>
       {payload.map((entry: any, i: number) => (
-        <p key={i} className="text-sm font-semibold text-white" style={{ color: entry.color }}>
-          {entry.name || entry.dataKey}: {entry.value}
+        <p key={i} className="mt-0.5 font-mono text-small tabular text-ink">
+          {entry.value} <span className="text-ink-tertiary">{entry.name === 'count' ? 'entries' : entry.name}</span>
         </p>
       ))}
     </div>
   );
 }
 
-function HourlyEntriesChart({ data }: { data: ChartData['hourlyEntries'] }) {
+function EmptyChart({ height, message }: { height: number; message: string }) {
   return (
-    <Card className="group relative border-0 overflow-hidden bg-white/5 backdrop-blur-xl transition-all duration-300 hover:bg-white/10 hover:shadow-2xl hover:shadow-black/20">
-      <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-sm font-medium uppercase tracking-wider text-white/60">
-          <Activity className="h-4 w-4 text-blue-400" />
-          Hourly Entries
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <ResponsiveContainer width="100%" height={300}>
-          <LineChart data={data}>
-            <defs>
-              <linearGradient id="lineGlow" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.4} />
-                <stop offset="100%" stopColor="#3b82f6" stopOpacity={0} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-            <XAxis dataKey="hour" stroke="rgba(255,255,255,0.3)" tick={{ fontSize: 12 }} />
-            <YAxis stroke="rgba(255,255,255,0.3)" tick={{ fontSize: 12 }} />
-            <Tooltip content={<CustomTooltip />} />
-            <Line
-              type="monotone"
-              dataKey="count"
-              stroke="#3b82f6"
-              strokeWidth={2}
-              dot={{ fill: '#3b82f6', r: 3 }}
-              activeDot={{ r: 5, fill: '#3b82f6' }}
-              fill="url(#lineGlow)"
-            />
-          </LineChart>
-        </ResponsiveContainer>
-      </CardContent>
-    </Card>
+    <div className="flex flex-col items-center justify-center gap-2 text-center" style={{ height }}>
+      <span className="h-px w-10 bg-border-strong" aria-hidden="true" />
+      <p className="text-tiny text-ink-tertiary">{message}</p>
+    </div>
   );
 }
 
-function EntriesByGateChart({ data }: { data: ChartData['entriesByGate'] }) {
+function Panel({
+  eyebrow,
+  title,
+  aside,
+  children,
+  className,
+}: {
+  eyebrow: string;
+  title: string;
+  aside?: string;
+  children: React.ReactNode;
+  className?: string;
+}) {
   return (
-    <Card className="group relative border-0 overflow-hidden bg-white/5 backdrop-blur-xl transition-all duration-300 hover:bg-white/10 hover:shadow-2xl hover:shadow-black/20">
-      <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-sm font-medium uppercase tracking-wider text-white/60">
-          <PieIcon className="h-4 w-4 text-purple-400" />
-          Entries Per Gate
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <ResponsiveContainer width="100%" height={300}>
-          <PieChart>
-            <Pie
-              data={data}
-              dataKey="count"
-              nameKey="gate"
-              cx="50%"
-              cy="50%"
-              outerRadius={100}
-              innerRadius={50}
-              paddingAngle={3}
-            >
-              {data.map((_, index) => (
-                <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
-              ))}
-            </Pie>
-            <Tooltip content={<CustomTooltip />} />
-            <Legend
-              formatter={(value) => (
-                <span className="text-sm text-white/70">{value}</span>
-              )}
-            />
-          </PieChart>
-        </ResponsiveContainer>
-      </CardContent>
-    </Card>
+    <section className={className}>
+      <div className="flex items-start justify-between gap-3 border-b border-border px-4 py-3">
+        <div>
+          <p className="eyebrow">{eyebrow}</p>
+          <h3 className="mt-1 text-small font-medium text-ink">{title}</h3>
+        </div>
+        {aside && <p className="font-mono text-tiny tabular text-ink-secondary">{aside}</p>}
+      </div>
+      <div className="p-3">{children}</div>
+    </section>
   );
 }
 
-function UsageChart({ used, remaining }: { used: number; remaining: number }) {
+function GateBars({ data }: { data: ChartData['entriesByGate'] }) {
+  const max = Math.max(...data.map((d) => d.count), 1);
+  if (data.length === 0) {
+    return <p className="px-2 py-12 text-center text-tiny text-ink-tertiary">No gate activity yet</p>;
+  }
+  return (
+    <ul className="space-y-4 px-1 py-2">
+      {data.map((gate) => (
+        <li key={gate.gate}>
+          <div className="flex items-baseline justify-between gap-3">
+            <span className="truncate text-small text-ink-secondary">{gate.gate}</span>
+            <span className="font-mono text-small font-medium tabular text-ink">{gate.count}</span>
+          </div>
+          <div className="mt-1.5 h-[5px] w-full bg-sunken" aria-hidden="true">
+            <div className="h-full bg-ink" style={{ width: `${(gate.count / max) * 100}%` }} />
+          </div>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function UsageDonut({ used, remaining }: { used: number; remaining: number }) {
+  const total = used + remaining;
   const data = [
     { name: 'Used', value: used },
     { name: 'Remaining', value: remaining },
   ];
+  const percent = total > 0 ? Math.round((used / total) * 100) : 0;
 
   return (
-    <Card className="group relative border-0 overflow-hidden bg-white/5 backdrop-blur-xl transition-all duration-300 hover:bg-white/10 hover:shadow-2xl hover:shadow-black/20">
-      <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-sm font-medium uppercase tracking-wider text-white/60">
-          <TrendingUp className="h-4 w-4 text-emerald-400" />
-          Entries Used vs Remaining
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <ResponsiveContainer width="100%" height={300}>
-          <PieChart>
-            <Pie
-              data={data}
-              dataKey="value"
-              nameKey="name"
-              cx="50%"
-              cy="50%"
-              outerRadius={100}
-              innerRadius={60}
-              startAngle={90}
-              endAngle={-270}
-            >
-              <Cell fill="#10b981" />
-              <Cell fill="rgba(255,255,255,0.1)" />
-            </Pie>
-            <Tooltip content={<CustomTooltip />} />
-            <Legend
-              formatter={(value) => (
-                <span className="text-sm text-white/70">{value}</span>
-              )}
-            />
-          </PieChart>
-        </ResponsiveContainer>
-      </CardContent>
-    </Card>
-  );
-}
-
-function DailyActivityChart({ data }: { data: ChartData['dailyActivity'] }) {
-  return (
-    <Card className="group relative border-0 overflow-hidden bg-white/5 backdrop-blur-xl transition-all duration-300 hover:bg-white/10 hover:shadow-2xl hover:shadow-black/20">
-      <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-sm font-medium uppercase tracking-wider text-white/60">
-          <BarChart3 className="h-4 w-4 text-amber-400" />
-          Daily Activity
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <ResponsiveContainer width="100%" height={300}>
-          <BarChart data={data}>
-            <defs>
-              <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#f59e0b" stopOpacity={0.8} />
-                <stop offset="100%" stopColor="#f59e0b" stopOpacity={0.2} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-            <XAxis dataKey="date" stroke="rgba(255,255,255,0.3)" tick={{ fontSize: 12 }} />
-            <YAxis stroke="rgba(255,255,255,0.3)" tick={{ fontSize: 12 }} />
-            <Tooltip content={<CustomTooltip />} />
-            <Bar dataKey="count" fill="url(#barGradient)" radius={[4, 4, 0, 0]} />
-          </BarChart>
-        </ResponsiveContainer>
-      </CardContent>
-    </Card>
+    <div className="relative">
+      <ResponsiveContainer width="100%" height={190}>
+        <PieChart>
+          <Pie
+            data={data}
+            dataKey="value"
+            nameKey="name"
+            cx="50%"
+            cy="50%"
+            innerRadius={58}
+            outerRadius={78}
+            startAngle={90}
+            endAngle={-270}
+            stroke="none"
+            isAnimationActive={false}
+          >
+            <Cell fill="hsl(var(--accent))" />
+            <Cell fill="hsl(var(--sunken))" />
+          </Pie>
+          <Tooltip content={<ChartTooltip />} />
+        </PieChart>
+      </ResponsiveContainer>
+      <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+        <p className="font-mono text-[1.75rem] font-medium leading-none tabular text-ink">{percent}%</p>
+        <p className="mt-1 font-mono text-[9px] uppercase tracking-[0.1em] text-ink-tertiary">used</p>
+      </div>
+      <div className="flex items-center justify-center gap-5 pb-2 text-tiny text-ink-secondary">
+        <span className="flex items-center gap-1.5">
+          <span className="h-2 w-2 bg-accent" aria-hidden="true" />
+          {used} used
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="h-2 w-2 bg-sunken" aria-hidden="true" />
+          {remaining} left
+        </span>
+      </div>
+    </div>
   );
 }
 
 export default function Charts({ data }: Props) {
   if (!data) {
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <ChartSkeleton />
-        <ChartSkeleton />
-        <ChartSkeleton />
-        <ChartSkeleton />
+      <div className="grid gap-px overflow-hidden rounded-md border border-border bg-border sm:grid-cols-2">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className="bg-surface p-4">
+            <Skeleton className="h-3 w-24" />
+            <Skeleton className="mt-4 h-[190px] w-full" />
+          </div>
+        ))}
       </div>
     );
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-      <HourlyEntriesChart data={data.hourlyEntries} />
-      <EntriesByGateChart data={data.entriesByGate} />
-      <UsageChart used={data.entriesUsed} remaining={data.remaining} />
-      <DailyActivityChart data={data.dailyActivity} />
+    <div className="grid gap-px overflow-hidden rounded-md border border-border bg-border sm:grid-cols-2">
+      <Panel
+        eyebrow="Throughput"
+        title="Entries by hour"
+        aside={`${data.entriesUsed} total`}
+        className="bg-surface sm:col-span-2"
+      >
+        {data.hourlyEntries.length === 0 ? (
+          <EmptyChart height={210} message="No entries recorded today" />
+        ) : (
+          <ResponsiveContainer width="100%" height={210}>
+            <AreaChart data={data.hourlyEntries} margin={{ top: 10, right: 8, left: -18, bottom: 0 }}>
+              <CartesianGrid stroke="hsl(var(--border))" vertical={false} strokeDasharray="2 4" />
+              <XAxis dataKey="hour" tick={axisStyle} axisLine={{ stroke: 'hsl(var(--border))' }} tickLine={false} dy={6} />
+              <YAxis tick={axisStyle} axisLine={false} tickLine={false} allowDecimals={false} />
+              <Tooltip content={<ChartTooltip />} cursor={{ stroke: 'hsl(var(--border-strong))', strokeWidth: 1 }} />
+              <Area
+                type="monotone"
+                dataKey="count"
+                name="count"
+                stroke="hsl(var(--accent))"
+                strokeWidth={2}
+                fill="hsl(var(--accent) / 0.12)"
+                dot={false}
+                activeDot={{ r: 4, fill: 'hsl(var(--accent))', stroke: 'hsl(var(--surface))', strokeWidth: 2 }}
+                isAnimationActive={false}
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        )}
+      </Panel>
+
+      <Panel eyebrow="Distribution" title="Entries per gate" className="bg-surface">
+        <GateBars data={data.entriesByGate} />
+      </Panel>
+
+      <Panel
+        eyebrow="Capacity"
+        title="Ticket usage"
+        aside={`${data.entriesUsed + data.remaining} entries`}
+        className="bg-surface"
+      >
+        <UsageDonut used={data.entriesUsed} remaining={data.remaining} />
+      </Panel>
+
+      <Panel eyebrow="Trend" title="Last 7 days" className="bg-surface sm:col-span-2">
+        {data.dailyActivity.length === 0 ? (
+          <EmptyChart height={170} message="No activity in the last week" />
+        ) : (
+          <ResponsiveContainer width="100%" height={170}>
+            <BarChart data={data.dailyActivity} margin={{ top: 10, right: 8, left: -18, bottom: 0 }}>
+              <CartesianGrid stroke="hsl(var(--border))" vertical={false} strokeDasharray="2 4" />
+              <XAxis dataKey="date" tick={axisStyle} axisLine={{ stroke: 'hsl(var(--border))' }} tickLine={false} dy={6} />
+              <YAxis tick={axisStyle} axisLine={false} tickLine={false} allowDecimals={false} />
+              <Tooltip content={<ChartTooltip />} cursor={{ fill: 'hsl(var(--sunken) / 0.6)' }} />
+              <Bar dataKey="count" fill="hsl(var(--ink))" radius={[1, 1, 0, 0]} maxBarSize={28} isAnimationActive={false} />
+            </BarChart>
+          </ResponsiveContainer>
+        )}
+      </Panel>
     </div>
   );
 }

@@ -1,21 +1,34 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
-  Search, ShieldCheck, ShieldX, Check, X, Lock, User, Clock, Hash,
-  ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  Hash,
+  Lock,
+  Search,
+  ShieldCheck,
+  ShieldX,
+  X,
 } from 'lucide-react';
 import { Layout } from '../components/layout/Layout';
-import { Card, CardContent } from '../components/ui/card';
+import { PageHeader } from '../components/layout/PageHeader';
 import { Input } from '../components/ui/input';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from '../components/ui/dialog';
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue
-} from '../components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { api } from '../lib/api';
-import { cn } from '../lib/utils';
+import { cn, formatDateTime } from '../lib/utils';
 import toast from 'react-hot-toast';
 import { getSocket } from '../lib/socket';
 
@@ -34,6 +47,8 @@ interface AuthTicket {
   createdAt: string;
 }
 
+const PAGE_SIZE = 20;
+
 export function AuthorizedTicketsPage() {
   const [tickets, setTickets] = useState<AuthTicket[]>([]);
   const [search, setSearch] = useState('');
@@ -47,7 +62,6 @@ export function AuthorizedTicketsPage() {
   const [authLoading, setAuthLoading] = useState(false);
   const [authNote, setAuthNote] = useState('');
   const dialogOpenRef = useRef(false);
-  const PAGE_SIZE = 20;
 
   const fetchTickets = async () => {
     try {
@@ -65,7 +79,9 @@ export function AuthorizedTicketsPage() {
 
   useEffect(() => {
     const socket = getSocket();
-    const guarded = () => { if (!dialogOpenRef.current) fetchTickets(); };
+    const guarded = () => {
+      if (!dialogOpenRef.current) fetchTickets();
+    };
     socket.on('tickets-update', guarded);
     socket.on('stats-update', guarded);
     return () => {
@@ -78,17 +94,16 @@ export function AuthorizedTicketsPage() {
     let data = tickets;
     if (search) {
       const q = search.toLowerCase();
-      data = data.filter(t =>
-        t.ticketNumber.toLowerCase().includes(q) ||
-        t.name.toLowerCase().includes(q) ||
-        t.phone.toLowerCase().includes(q) ||
-        t.email.toLowerCase().includes(q)
+      data = data.filter(
+        (t) =>
+          t.ticketNumber.toLowerCase().includes(q) ||
+          t.name.toLowerCase().includes(q) ||
+          t.phone.toLowerCase().includes(q) ||
+          t.email.toLowerCase().includes(q)
       );
     }
-    if (authFilter !== 'ALL') {
-      if (authFilter === 'AUTHORIZED') data = data.filter(t => t.authorized);
-      else if (authFilter === 'UNAUTHORIZED') data = data.filter(t => !t.authorized);
-    }
+    if (authFilter === 'AUTHORIZED') data = data.filter((t) => t.authorized);
+    else if (authFilter === 'UNAUTHORIZED') data = data.filter((t) => !t.authorized);
     return data;
   }, [tickets, search, authFilter]);
 
@@ -96,22 +111,37 @@ export function AuthorizedTicketsPage() {
   const safePage = Math.min(page, totalPages);
   const paginatedTickets = filteredTickets.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
-  const totalAuthorized = tickets.filter(t => t.authorized).length;
-  const totalUnauthorized = tickets.filter(t => !t.authorized).length;
-
-  const allSelected = paginatedTickets.length > 0 && selected.size === paginatedTickets.length;
+  const totalAuthorized = tickets.filter((t) => t.authorized).length;
+  const totalUnauthorized = tickets.filter((t) => !t.authorized).length;
+  const allSelected = paginatedTickets.length > 0 && paginatedTickets.every((t) => selected.has(t.id));
 
   const toggleSelect = (id: number) => {
-    setSelected(prev => {
+    setSelected((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   };
 
   const toggleSelectAll = () => {
     if (allSelected) setSelected(new Set());
-    else setSelected(new Set(paginatedTickets.map(t => t.id)));
+    else setSelected(new Set(paginatedTickets.map((t) => t.id)));
+  };
+
+  const closeAuthModal = (open: boolean) => {
+    dialogOpenRef.current = open;
+    setAuthModalOpen(open);
+    if (!open) {
+      setPassword('');
+      setAuthNote('');
+    }
+  };
+
+  const closeDeauthModal = (open: boolean) => {
+    dialogOpenRef.current = open;
+    setDeauthModalOpen(open);
+    if (!open) setPassword('');
   };
 
   const handleAuthorize = async () => {
@@ -124,14 +154,12 @@ export function AuthorizedTicketsPage() {
         authorizedBy: localStorage.getItem('username') || 'Admin',
         note: authNote,
       });
-      toast.success(res.message || 'Ticket authorized');
-      setAuthModalOpen(false);
-      setPassword('');
-      setAuthNote('');
+      toast.success(res.message || 'Ticket authorised');
+      closeAuthModal(false);
       setCurrentTicketId(null);
       fetchTickets();
     } catch (err: any) {
-      toast.error(err.message || 'Authorization failed');
+      toast.error(err.message || 'Authorisation failed');
     } finally {
       setAuthLoading(false);
     }
@@ -141,25 +169,22 @@ export function AuthorizedTicketsPage() {
     if (currentTicketId === null || !password) return;
     setAuthLoading(true);
     try {
-      const res = await api.deauthorizeTicket({
-        ticketId: currentTicketId,
-        password,
-      });
-      toast.success(res.message || 'Authorization removed');
-      setDeauthModalOpen(false);
-      setPassword('');
+      const res = await api.deauthorizeTicket({ ticketId: currentTicketId, password });
+      toast.success(res.message || 'Authorisation removed');
+      closeDeauthModal(false);
       setCurrentTicketId(null);
       fetchTickets();
     } catch (err: any) {
-      toast.error(err.message || 'Failed to remove authorization');
+      toast.error(err.message || 'Failed to remove authorisation');
     } finally {
       setAuthLoading(false);
     }
   };
 
-  const handleBulkAuthorize = async () => {
+  const handleBulkAuthorize = () => {
     if (selected.size === 0) return;
     setPassword('');
+    dialogOpenRef.current = true;
     setAuthModalOpen(true);
   };
 
@@ -172,329 +197,373 @@ export function AuthorizedTicketsPage() {
         password,
         authorizedBy: localStorage.getItem('username') || 'Admin',
       });
-      toast.success(res.message || 'Tickets authorized');
-      setAuthModalOpen(false);
-      setPassword('');
+      toast.success(res.message || 'Tickets authorised');
+      closeAuthModal(false);
       setSelected(new Set());
       fetchTickets();
     } catch (err: any) {
-      toast.error(err.message || 'Bulk authorization failed');
+      toast.error(err.message || 'Bulk authorisation failed');
     } finally {
       setAuthLoading(false);
     }
   };
 
+  const isBulk = selected.size > 1;
+  const modalTicket = tickets.find((t) => t.id === currentTicketId);
+  const navButton =
+    'flex h-9 w-9 items-center justify-center rounded-sm text-ink-secondary transition-colors hover:bg-sunken hover:text-ink disabled:cursor-not-allowed disabled:opacity-30';
+
   return (
     <Layout>
-      <div className="p-4 lg:p-6 space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
-            Authorized Tickets
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Manage ticket authorization — only authorized tickets can be scanned for entry
-          </p>
+      <PageHeader
+        eyebrow="Door policy"
+        title="Authorisation"
+        description="Only authorised tickets pass the gate. Authorise a whole list at once, or remove one guest with the secondary password."
+        actions={
+          <Button variant="outline" asChild>
+            <Link to="/tickets">
+              <Hash className="h-4 w-4" strokeWidth={1.8} aria-hidden="true" />
+              All tickets
+            </Link>
+          </Button>
+        }
+      />
+
+      <div className="mb-4 grid grid-cols-1 gap-px overflow-hidden rounded-md border border-border bg-border sm:grid-cols-3">
+        <div className="bg-surface p-5">
+          <p className="eyebrow">Authorised</p>
+          <p className="mt-2 font-mono text-[2rem] font-medium leading-none tabular text-success">{totalAuthorized}</p>
+          <p className="mt-2 text-tiny text-ink-tertiary">cleared for entry</p>
         </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <Card className="border-0 bg-white/5 backdrop-blur-xl">
-            <CardContent className="p-5 flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-500 to-emerald-600 shadow-lg">
-                <ShieldCheck className="h-5 w-5 text-white" />
-              </div>
-              <div>
-                <p className="text-xs font-medium uppercase tracking-wider text-white/60">Authorized</p>
-                <p className="text-2xl font-bold text-white tabular-nums">{totalAuthorized}</p>
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="border-0 bg-white/5 backdrop-blur-xl">
-            <CardContent className="p-5 flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-amber-500 to-amber-600 shadow-lg">
-                <ShieldX className="h-5 w-5 text-white" />
-              </div>
-              <div>
-                <p className="text-xs font-medium uppercase tracking-wider text-white/60">Unauthorized</p>
-                <p className="text-2xl font-bold text-white tabular-nums">{totalUnauthorized}</p>
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="border-0 bg-white/5 backdrop-blur-xl">
-            <CardContent className="p-5 flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 shadow-lg">
-                <Hash className="h-5 w-5 text-white" />
-              </div>
-              <div>
-                <p className="text-xs font-medium uppercase tracking-wider text-white/60">Total Tickets</p>
-                <p className="text-2xl font-bold text-white tabular-nums">{tickets.length}</p>
-              </div>
-            </CardContent>
-          </Card>
+        <div className="bg-surface p-5">
+          <p className="eyebrow">Not authorised</p>
+          <p className="mt-2 font-mono text-[2rem] font-medium leading-none tabular text-warning">{totalUnauthorized}</p>
+          <p className="mt-2 text-tiny text-ink-tertiary">will be refused at the gate</p>
         </div>
-
-        <Card className="border-0 bg-white/5 backdrop-blur-xl">
-          <CardContent className="p-0">
-            <div className="flex flex-col sm:flex-row gap-3 p-4 border-b border-white/5">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/30" />
-                <Input
-                  value={search}
-                  onChange={e => { setSearch(e.target.value); setPage(1); }}
-                  placeholder="Search by ticket number, name, phone, or email..."
-                  className="pl-9 h-9 text-sm"
-                />
-              </div>
-              <Select value={authFilter} onValueChange={v => { setAuthFilter(v); setPage(1); }}>
-                <SelectTrigger className="h-9 w-[160px] text-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">All Tickets</SelectItem>
-                  <SelectItem value="AUTHORIZED">Authorized</SelectItem>
-                  <SelectItem value="UNAUTHORIZED">Unauthorized</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {selected.size > 0 && (
-              <div className="flex items-center gap-2 px-4 py-2.5 bg-primary/10 border-b border-primary/20">
-                <span className="text-xs font-medium text-primary mr-2">{selected.size} selected</span>
-                <Button variant="ghost" size="xs" onClick={handleBulkAuthorize} className="text-white/70 hover:text-white">
-                  <ShieldCheck className="h-3.5 w-3.5 mr-1" />
-                  Authorize Selected
-                </Button>
-              </div>
-            )}
-
-            {paginatedTickets.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-16 text-white/40">
-                <ShieldCheck className="h-12 w-12 mb-3 opacity-50" />
-                <p className="text-sm font-medium">
-                  {search || authFilter !== 'ALL' ? 'No tickets match your filters' : 'No tickets found'}
-                </p>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-white/5">
-                      <th className="p-3 text-left">
-                        <input
-                          type="checkbox"
-                          checked={allSelected}
-                          onChange={toggleSelectAll}
-                          className="rounded border-white/20 bg-white/5"
-                        />
-                      </th>
-                      <th className="p-3 text-left text-xs font-medium uppercase tracking-wider text-white/40">Ticket</th>
-                      <th className="p-3 text-left text-xs font-medium uppercase tracking-wider text-white/40">Name</th>
-                      <th className="p-3 text-left text-xs font-medium uppercase tracking-wider text-white/40">Authorized</th>
-                      <th className="p-3 text-left text-xs font-medium uppercase tracking-wider text-white/40">Authorized By</th>
-                      <th className="p-3 text-left text-xs font-medium uppercase tracking-wider text-white/40">Auth Time</th>
-                      <th className="p-3 text-left text-xs font-medium uppercase tracking-wider text-white/40">Entries</th>
-                      <th className="p-3 text-right text-xs font-medium uppercase tracking-wider text-white/40">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {paginatedTickets.map(ticket => {
-                      const remaining = Math.max(ticket.maxEntries - ticket.entriesUsed, 0);
-                      return (
-                        <tr key={ticket.id} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
-                          <td className="p-3">
-                            <input
-                              type="checkbox"
-                              checked={selected.has(ticket.id)}
-                              onChange={() => toggleSelect(ticket.id)}
-                              className="rounded border-white/20 bg-white/5"
-                            />
-                          </td>
-                          <td className="p-3">
-                            <span className="text-sm font-mono text-white/80">{ticket.ticketNumber}</span>
-                          </td>
-                          <td className="p-3">
-                            <span className="text-sm text-white/70">{ticket.name || '—'}</span>
-                          </td>
-                          <td className="p-3">
-                            {ticket.authorized ? (
-                              <Badge variant="success" className="text-[10px]">
-                                <Check className="h-3 w-3 mr-1" />
-                                Authorized
-                              </Badge>
-                            ) : (
-                              <Badge variant="warning" className="text-[10px]">
-                                <X className="h-3 w-3 mr-1" />
-                                Unauthorized
-                              </Badge>
-                            )}
-                          </td>
-                          <td className="p-3 text-sm text-white/50">
-                            {ticket.authorizedBy || '—'}
-                          </td>
-                          <td className="p-3 text-sm text-white/50">
-                            {ticket.authorizationTime ? new Date(ticket.authorizationTime).toLocaleString() : '—'}
-                          </td>
-                          <td className="p-3">
-                            <span className="text-sm text-white/70">
-                              {ticket.entriesUsed}/{ticket.maxEntries}
-                              <span className="text-white/30 ml-1">({remaining} left)</span>
-                            </span>
-                          </td>
-                          <td className="p-3 text-right">
-                            <div className="flex items-center justify-end gap-1">
-                              {ticket.authorized ? (
-                                <Button
-                                  variant="ghost"
-                                  size="xs"
-                                  onClick={() => { dialogOpenRef.current = true; setCurrentTicketId(ticket.id); setPassword(''); setDeauthModalOpen(true); }}
-                                  className="text-red-400 hover:text-red-300 hover:bg-red-500/10"
-                                >
-                                  <ShieldX className="h-3.5 w-3.5 mr-1" />
-                                  Remove
-                                </Button>
-                              ) : (
-                                <Button
-                                  variant="ghost"
-                                  size="xs"
-                                  onClick={() => { dialogOpenRef.current = true; setCurrentTicketId(ticket.id); setPassword(''); setAuthNote(''); setAuthModalOpen(true); }}
-                                  className="text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10"
-                                >
-                                  <ShieldCheck className="h-3.5 w-3.5 mr-1" />
-                                  Authorize
-                                </Button>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-
-            <div className="flex items-center justify-between px-4 py-3">
-              <span className="text-xs text-white/40">
-                Showing {paginatedTickets.length} of {filteredTickets.length} tickets
-              </span>
-              {totalPages > 1 && (
-                <div className="flex items-center gap-1">
-                  <button onClick={() => setPage(1)} disabled={page <= 1}
-                    className="flex h-8 w-8 items-center justify-center rounded-lg text-white/40 hover:text-white hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed transition-all">
-                    <ChevronsLeft className="h-4 w-4" />
-                  </button>
-                  <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1}
-                    className="flex h-8 w-8 items-center justify-center rounded-lg text-white/40 hover:text-white hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed transition-all">
-                    <ChevronLeft className="h-4 w-4" />
-                  </button>
-                  <span className="text-xs text-white/40 px-2">Page {safePage} of {totalPages}</span>
-                  <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page >= totalPages}
-                    className="flex h-8 w-8 items-center justify-center rounded-lg text-white/40 hover:text-white hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed transition-all">
-                    <ChevronRight className="h-4 w-4" />
-                  </button>
-                  <button onClick={() => setPage(totalPages)} disabled={page >= totalPages}
-                    className="flex h-8 w-8 items-center justify-center rounded-lg text-white/40 hover:text-white hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed transition-all">
-                    <ChevronsRight className="h-4 w-4" />
-                  </button>
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+        <div className="bg-surface p-5">
+          <p className="eyebrow">Total tickets</p>
+          <p className="mt-2 font-mono text-[2rem] font-medium leading-none tabular text-ink">{tickets.length}</p>
+          <p className="mt-2 text-tiny text-ink-tertiary">on the guest list</p>
+        </div>
       </div>
 
-      <Dialog open={authModalOpen} onOpenChange={v => { dialogOpenRef.current = v; setAuthModalOpen(v); }}>
-        <DialogContent className="sm:max-w-md">
+      <section aria-label="Ticket authorisations" className="overflow-hidden rounded-md border border-border bg-surface">
+        <div className="flex flex-col gap-2 border-b border-border p-4 sm:flex-row">
+          <div className="relative flex-1">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-tertiary" strokeWidth={1.7} aria-hidden="true" />
+            <Input
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
+              placeholder="Search number, name, phone, email"
+              aria-label="Search tickets"
+              className="pl-9"
+            />
+          </div>
+          <Select
+            value={authFilter}
+            onValueChange={(v) => {
+              setAuthFilter(v);
+              setPage(1);
+            }}
+          >
+            <SelectTrigger className="sm:w-[168px]" aria-label="Filter by authorisation">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="ALL">All tickets</SelectItem>
+              <SelectItem value="AUTHORIZED">Authorised</SelectItem>
+              <SelectItem value="UNAUTHORIZED">Not authorised</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {selected.size > 0 && (
+          <div className="flex flex-wrap items-center gap-2 border-b border-border bg-accent-soft/60 px-4 py-2.5">
+            <span className="mr-1 font-mono text-[10px] uppercase tracking-[0.08em] text-accent-strong">
+              {selected.size} selected
+            </span>
+            <Button size="sm" onClick={handleBulkAuthorize}>
+              <ShieldCheck className="h-3.5 w-3.5" strokeWidth={1.8} aria-hidden="true" />
+              Authorise selected
+            </Button>
+            <button
+              type="button"
+              onClick={() => setSelected(new Set())}
+              className="ml-auto flex h-8 items-center gap-1 rounded-sm px-2 text-tiny text-ink-secondary transition-colors hover:bg-surface hover:text-ink"
+            >
+              <X className="h-3.5 w-3.5" strokeWidth={1.8} aria-hidden="true" />
+              Clear
+            </button>
+          </div>
+        )}
+
+        {paginatedTickets.length === 0 ? (
+          <div className="flex flex-col items-center justify-center px-6 py-16 text-center">
+            <span className="flex h-11 w-11 items-center justify-center rounded-sm border border-border bg-sunken text-ink-secondary">
+              <ShieldCheck className="h-5 w-5" strokeWidth={1.6} aria-hidden="true" />
+            </span>
+            <p className="mt-4 font-display text-[1.35rem] font-medium text-ink">
+              {search || authFilter !== 'ALL' ? 'No tickets match' : 'No tickets yet'}
+            </p>
+            <p className="mt-1 text-small text-ink-secondary">
+              {search || authFilter !== 'ALL'
+                ? 'Adjust the search or filter to see more guests.'
+                : 'Import the guest list from Tickets to start authorising.'}
+            </p>
+          </div>
+        ) : (
+          <div className="scroll-thin overflow-x-auto">
+            <table className="w-full min-w-[860px] border-collapse">
+              <thead>
+                <tr className="border-b border-border bg-sunken/40">
+                  <th className="w-10 px-4 py-2.5 text-left">
+                    <button
+                      type="button"
+                      role="checkbox"
+                      aria-checked={allSelected}
+                      aria-label="Select all tickets on this page"
+                      onClick={toggleSelectAll}
+                      className={cn(
+                        'flex h-[18px] w-[18px] items-center justify-center rounded-sm border transition-colors',
+                        allSelected ? 'border-ink bg-ink text-bg' : 'border-border-strong hover:border-ink'
+                      )}
+                    >
+                      {allSelected && <Check className="h-3 w-3" strokeWidth={2.4} aria-hidden="true" />}
+                    </button>
+                  </th>
+                  {['Ticket', 'Guest', 'Authorisation', 'Authorised by', 'Time', 'Entries', ''].map((label, i) => (
+                    <th
+                      key={i}
+                      className={cn(
+                        'px-3 py-2.5 font-mono text-[9px] font-medium uppercase tracking-[0.12em] text-ink-tertiary',
+                        i === 6 ? 'text-right' : 'text-left'
+                      )}
+                    >
+                      {label}
+                      {i === 6 && <span className="sr-only">Actions</span>}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {paginatedTickets.map((ticket) => {
+                  const remaining = Math.max(ticket.maxEntries - ticket.entriesUsed, 0);
+                  return (
+                    <tr key={ticket.id} className="row-hover">
+                      <td className="w-10 px-4 py-3">
+                        <button
+                          type="button"
+                          role="checkbox"
+                          aria-checked={selected.has(ticket.id)}
+                          aria-label={`Select ticket ${ticket.ticketNumber}`}
+                          onClick={() => toggleSelect(ticket.id)}
+                          className={cn(
+                            'flex h-[18px] w-[18px] items-center justify-center rounded-sm border transition-colors',
+                            selected.has(ticket.id)
+                              ? 'border-ink bg-ink text-bg'
+                              : 'border-border-strong hover:border-ink'
+                          )}
+                        >
+                          {selected.has(ticket.id) && <Check className="h-3 w-3" strokeWidth={2.4} aria-hidden="true" />}
+                        </button>
+                      </td>
+                      <td className="px-3 py-3 font-mono text-small font-medium tabular text-ink">{ticket.ticketNumber}</td>
+                      <td className="max-w-[220px] px-3 py-3">
+                        <p className="truncate text-small text-ink">{ticket.name || '—'}</p>
+                        {ticket.phone && <p className="truncate font-mono text-[10px] text-ink-tertiary">{ticket.phone}</p>}
+                      </td>
+                      <td className="px-3 py-3">
+                        {ticket.authorized ? (
+                          <Badge variant="success" dot>Authorised</Badge>
+                        ) : (
+                          <Badge variant="warning" dot>Not authorised</Badge>
+                        )}
+                      </td>
+                      <td className="px-3 py-3 text-tiny text-ink-secondary">{ticket.authorizedBy || '—'}</td>
+                      <td className="px-3 py-3 text-tiny tabular text-ink-secondary">
+                        {ticket.authorizationTime ? formatDateTime(ticket.authorizationTime) : '—'}
+                      </td>
+                      <td className="px-3 py-3">
+                        <span className="font-mono text-tiny tabular text-ink-secondary">
+                          {ticket.entriesUsed}/{ticket.maxEntries}
+                          <span className="ml-1 text-ink-tertiary">· {remaining} left</span>
+                        </span>
+                      </td>
+                      <td className="px-3 py-3 text-right">
+                        {ticket.authorized ? (
+                          <Button
+                            variant="danger-quiet"
+                            size="sm"
+                            onClick={() => {
+                              dialogOpenRef.current = true;
+                              setCurrentTicketId(ticket.id);
+                              setPassword('');
+                              setDeauthModalOpen(true);
+                            }}
+                          >
+                            <ShieldX className="h-3.5 w-3.5" strokeWidth={1.8} aria-hidden="true" />
+                            Remove
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              dialogOpenRef.current = true;
+                              setCurrentTicketId(ticket.id);
+                              setPassword('');
+                              setAuthNote('');
+                              setAuthModalOpen(true);
+                            }}
+                          >
+                            <ShieldCheck className="h-3.5 w-3.5" strokeWidth={1.8} aria-hidden="true" />
+                            Authorise
+                          </Button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-4 py-3">
+          <p className="font-mono text-[10px] uppercase tracking-[0.08em] text-ink-tertiary">
+            Showing {paginatedTickets.length} of {filteredTickets.length}
+          </p>
+          {totalPages > 1 && (
+            <nav className="flex items-center gap-0.5" aria-label="Authorisation pages">
+              <button type="button" className={navButton} onClick={() => setPage(1)} disabled={page <= 1} aria-label="First page">
+                <ChevronsLeft className="h-4 w-4" strokeWidth={1.8} />
+              </button>
+              <button
+                type="button"
+                className={navButton}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page <= 1}
+                aria-label="Previous page"
+              >
+                <ChevronLeft className="h-4 w-4" strokeWidth={1.8} />
+              </button>
+              <span className="px-2 font-mono text-tiny tabular text-ink-secondary">
+                {safePage} / {totalPages}
+              </span>
+              <button
+                type="button"
+                className={navButton}
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page >= totalPages}
+                aria-label="Next page"
+              >
+                <ChevronRight className="h-4 w-4" strokeWidth={1.8} />
+              </button>
+              <button
+                type="button"
+                className={navButton}
+                onClick={() => setPage(totalPages)}
+                disabled={page >= totalPages}
+                aria-label="Last page"
+              >
+                <ChevronsRight className="h-4 w-4" strokeWidth={1.8} />
+              </button>
+            </nav>
+          )}
+        </div>
+      </section>
+
+      <Dialog open={authModalOpen} onOpenChange={closeAuthModal}>
+        <DialogContent>
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <ShieldCheck className="h-5 w-5 text-emerald-400" />
-              {selected.size > 1 ? `Authorize ${selected.size} Tickets` : 'Authorize Ticket'}
-            </DialogTitle>
+            <p className="eyebrow">{isBulk ? 'Bulk authorisation' : 'Single authorisation'}</p>
+            <DialogTitle>{isBulk ? `Authorise ${selected.size} tickets` : 'Authorise this ticket'}</DialogTitle>
             <DialogDescription>
-              {selected.size > 1
-                ? `You are about to authorize ${selected.size} tickets.`
-                : `Ticket #${tickets.find(t => t.id === currentTicketId)?.ticketNumber || ''}`}
+              {isBulk
+                ? `These ${selected.size} tickets will be cleared for entry.`
+                : `Ticket ${modalTicket?.ticketNumber || ''}${modalTicket?.name ? ` · ${modalTicket.name}` : ''}`}
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-2">
-            {selected.size <= 1 && (
+
+          <div className="space-y-4 py-1">
+            {!isBulk && (
               <div>
-                <label className="block text-xs font-medium text-white/60 mb-1">Note (optional)</label>
+                <label htmlFor="auth-note" className="mb-1.5 block text-tiny font-medium text-ink">
+                  Note <span className="font-normal text-ink-tertiary">(optional)</span>
+                </label>
                 <Input
+                  id="auth-note"
                   value={authNote}
-                  onChange={e => setAuthNote(e.target.value)}
-                  placeholder="Reason for authorizing..."
-                  className="h-9 text-sm"
+                  onChange={(e) => setAuthNote(e.target.value)}
+                  placeholder="Reason for authorising"
                 />
               </div>
             )}
             <div>
-              <label className="block text-xs font-medium text-white/60 mb-1">
-                <Lock className="h-3 w-3 inline mr-1" />
-                Authorization Password
+              <label htmlFor="auth-password" className="mb-1.5 flex items-center gap-1.5 text-tiny font-medium text-ink">
+                <Lock className="h-3.5 w-3.5" strokeWidth={1.7} aria-hidden="true" />
+                Authorisation password
               </label>
               <Input
+                id="auth-password"
                 type="password"
                 value={password}
-                onChange={e => setPassword(e.target.value)}
-                placeholder="Enter authorization password..."
-                className="h-9 text-sm"
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Enter the secondary password"
+                autoComplete="off"
               />
             </div>
           </div>
+
           <DialogFooter>
-            <Button variant="ghost" onClick={() => { setAuthModalOpen(false); setPassword(''); setAuthNote(''); }}>
+            <Button variant="ghost" onClick={() => closeAuthModal(false)}>
               Cancel
             </Button>
             <Button
-              onClick={selected.size > 1 ? confirmBulkAuthorize : handleAuthorize}
-              disabled={!password || authLoading}
-              className="bg-emerald-600 hover:bg-emerald-700"
+              onClick={isBulk ? confirmBulkAuthorize : handleAuthorize}
+              disabled={!password}
+              loading={authLoading}
             >
-              {authLoading ? 'Authorizing...' : 'Authorize'}
+              {isBulk ? `Authorise ${selected.size}` : 'Authorise'}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <Dialog open={deauthModalOpen} onOpenChange={v => { dialogOpenRef.current = v; setDeauthModalOpen(v); }}>
-        <DialogContent className="sm:max-w-md">
+      <Dialog open={deauthModalOpen} onOpenChange={closeDeauthModal}>
+        <DialogContent>
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <ShieldX className="h-5 w-5 text-red-400" />
-              Remove Authorization
-            </DialogTitle>
+            <p className="eyebrow">Remove clearance</p>
+            <DialogTitle>Remove authorisation</DialogTitle>
             <DialogDescription>
-              Ticket #{tickets.find(t => t.id === currentTicketId)?.ticketNumber || ''}
+              Ticket {modalTicket?.ticketNumber || ''} will be refused at the gate until it is authorised again.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-2">
-            <p className="text-sm text-white/60">
-              This will prevent this ticket from being scanned for entry.
-            </p>
-            <div>
-              <label className="block text-xs font-medium text-white/60 mb-1">
-                <Lock className="h-3 w-3 inline mr-1" />
-                Authorization Password
-              </label>
-              <Input
-                type="password"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                placeholder="Enter authorization password..."
-                className="h-9 text-sm"
-              />
-            </div>
+
+          <div>
+            <label htmlFor="deauth-password" className="mb-1.5 flex items-center gap-1.5 text-tiny font-medium text-ink">
+              <Lock className="h-3.5 w-3.5" strokeWidth={1.7} aria-hidden="true" />
+              Authorisation password
+            </label>
+            <Input
+              id="deauth-password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Enter the secondary password"
+              autoComplete="off"
+            />
           </div>
+
           <DialogFooter>
-            <Button variant="ghost" onClick={() => { setDeauthModalOpen(false); setPassword(''); }}>
+            <Button variant="ghost" onClick={() => closeDeauthModal(false)}>
               Cancel
             </Button>
-            <Button
-              onClick={handleDeauthorize}
-              disabled={!password || authLoading}
-              variant="destructive"
-            >
-              {authLoading ? 'Removing...' : 'Remove Authorization'}
+            <Button variant="danger" onClick={handleDeauthorize} disabled={!password} loading={authLoading}>
+              Remove authorisation
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -1,112 +1,26 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
-  Smartphone,
-  Monitor,
-  Wifi,
-  WifiOff,
   BatteryFull,
-  BatteryMedium,
   BatteryLow,
+  BatteryMedium,
   BatteryWarning,
-  MapPin,
-  Globe,
+  Radio,
+  Smartphone,
 } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
-import { Badge } from '../ui/badge';
-import { cn, formatTime } from '../../lib/utils';
-import { api } from '../../lib/api';
+import { api, normalizeDevice } from '../../lib/api';
 import { getSocket } from '../../lib/socket';
+import { cn, formatTime } from '../../lib/utils';
+import { Button } from '../ui/button';
+import { Skeleton } from '../ui/skeleton';
 import type { ScannerDevice } from '../../types';
 
 function BatteryIcon({ level }: { level: number }) {
-  if (level >= 75) return <BatteryFull className="h-4 w-4 text-emerald-400" />;
-  if (level >= 50) return <BatteryMedium className="h-4 w-4 text-amber-400" />;
-  if (level >= 25) return <BatteryLow className="h-4 w-4 text-orange-400" />;
-  return <BatteryWarning className="h-4 w-4 text-red-400" />;
-}
-
-function DeviceCard({ device }: { device: ScannerDevice }) {
-  return (
-    <Card className="group relative border-0 overflow-hidden bg-white/5 backdrop-blur-xl transition-all duration-300 hover:bg-white/10 hover:shadow-2xl hover:shadow-black/20">
-      <CardContent className="p-5">
-        <div className="flex items-start justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 shadow-lg">
-              <Smartphone className="h-4 w-4 text-white" />
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-white">{device.name}</p>
-              <p className="text-xs text-white/50">{device.browser}</p>
-            </div>
-          </div>
-          <div
-            className={cn(
-              'h-2.5 w-2.5 rounded-full',
-              device.online
-                ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.5)]'
-                : 'bg-red-400 shadow-[0_0_8px_rgba(248,113,113,0.5)]'
-            )}
-          />
-        </div>
-
-        <div className="flex items-center gap-2 text-xs text-white/50 mb-3">
-          <Globe className="h-3 w-3" />
-          <span>{device.ip}</span>
-          <MapPin className="h-3 w-3 ml-2" />
-          <span>{device.gate}</span>
-        </div>
-
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1.5">
-            <BatteryIcon level={device.battery} />
-            <span className="text-xs text-white/60">{device.battery}%</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            {device.online ? (
-              <Wifi className="h-3 w-3 text-emerald-400" />
-            ) : (
-              <WifiOff className="h-3 w-3 text-red-400" />
-            )}
-            <span className="text-xs text-white/40">{formatTime(device.lastSeen)}</span>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function SkeletonCard() {
-  return (
-    <Card className="border-0 bg-white/5 backdrop-blur-xl">
-      <CardContent className="p-5">
-        <div className="flex items-start justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <div className="h-9 w-9 rounded-lg bg-white/10 animate-pulse" />
-            <div className="space-y-1.5">
-              <div className="h-4 w-24 rounded bg-white/10 animate-pulse" />
-              <div className="h-3 w-16 rounded bg-white/10 animate-pulse" />
-            </div>
-          </div>
-          <div className="h-2.5 w-2.5 rounded-full bg-white/10 animate-pulse" />
-        </div>
-        <div className="h-3 w-40 rounded bg-white/10 animate-pulse mb-3" />
-        <div className="flex items-center justify-between">
-          <div className="h-4 w-16 rounded bg-white/10 animate-pulse" />
-          <div className="h-3 w-12 rounded bg-white/10 animate-pulse" />
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function EmptyState() {
-  return (
-    <div className="col-span-full flex flex-col items-center justify-center py-16 text-white/40">
-      <Smartphone className="h-16 w-16 mb-4 opacity-30" />
-      <p className="text-sm font-medium">No scanner devices connected</p>
-      <p className="text-xs mt-1">Scanners will appear here once they connect</p>
-    </div>
-  );
+  const cls = 'h-3.5 w-3.5';
+  if (level >= 75) return <BatteryFull className={cls} strokeWidth={1.7} aria-hidden="true" />;
+  if (level >= 50) return <BatteryMedium className={cls} strokeWidth={1.7} aria-hidden="true" />;
+  if (level >= 25) return <BatteryLow className={cls} strokeWidth={1.7} aria-hidden="true" />;
+  return <BatteryWarning className={cn(cls, 'text-danger')} strokeWidth={1.7} aria-hidden="true" />;
 }
 
 export default function ScannerDevices() {
@@ -114,80 +28,118 @@ export default function ScannerDevices() {
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
 
-  const fetchDevices = useCallback(async () => {
-    try {
-      const data = await api.scannerDevices();
-      setDevices(Array.isArray(data) ? data : data?.devices ?? []);
-    } catch {
-      setDevices([]);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
   useEffect(() => {
-    fetchDevices();
-  }, [fetchDevices, refreshKey]);
+    let mounted = true;
+    api
+      .scannerDevices()
+      .then((data) => {
+        if (mounted) setDevices(Array.isArray(data) ? data : data?.devices ?? []);
+      })
+      .catch(() => {
+        if (mounted) setDevices([]);
+      })
+      .finally(() => {
+        if (mounted) setLoading(false);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [refreshKey]);
 
   useEffect(() => {
     const socket = getSocket();
-
-    socket.on('scanner-devices-update', (data: ScannerDevice[]) => {
-      setDevices(Array.isArray(data) ? data : []);
-    });
-
-    socket.on('scanner-devices-refresh', (key: number) => {
-      setRefreshKey(key);
-    });
-
+    const onDevices = (data: ScannerDevice[]) => {
+      if (Array.isArray(data) && data.length > 0) setDevices(data.map(normalizeDevice));
+      else setRefreshKey((key) => key + 1);
+    };
+    const onRefresh = (key: number) => setRefreshKey(key);
+    socket.on('scanner-devices-update', onDevices);
+    socket.on('scanner-devices-refresh', onRefresh);
     return () => {
-      socket.off('scanner-devices-update');
-      socket.off('scanner-devices-refresh');
+      socket.off('scanner-devices-update', onDevices);
+      socket.off('scanner-devices-refresh', onRefresh);
     };
   }, []);
 
-  if (loading) {
-    return (
-      <Card className="border-0 bg-white/5 backdrop-blur-xl">
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-sm font-medium uppercase tracking-wider text-white/60">
-            <Smartphone className="h-4 w-4 text-cyan-400" />
-            Scanner Devices
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {Array.from({ length: 3 }).map((_, i) => (
-              <SkeletonCard key={i} />
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
+  const online = devices.filter((d) => d.online).length;
 
   return (
-    <Card className="border-0 bg-white/5 backdrop-blur-xl">
-      <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-sm font-medium uppercase tracking-wider text-white/60">
-          <Smartphone className="h-4 w-4 text-cyan-400" />
-          Scanner Devices
-          {devices.length > 0 && (
-            <span className="ml-auto text-xs text-white/40">
-              {devices.length} device{devices.length !== 1 ? 's' : ''}
-            </span>
-          )}
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {devices.length === 0 ? (
-            <EmptyState />
-          ) : (
-            devices.map((device) => <DeviceCard key={device.id} device={device} />)
-          )}
+    <section aria-label="Scanner devices" className="overflow-hidden rounded-md border border-border bg-surface">
+      <div className="flex items-end justify-between gap-3 border-b border-border px-4 py-3">
+        <div>
+          <p className="eyebrow">Gates</p>
+          <h3 className="mt-1 text-small font-medium text-ink">Scanner devices</h3>
         </div>
-      </CardContent>
-    </Card>
+        <p className="font-mono text-[10px] uppercase tracking-[0.08em] text-ink-tertiary">
+          {online} online · {devices.length} known
+        </p>
+      </div>
+
+      {loading ? (
+        <div className="divide-y divide-border">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="flex items-center gap-3 px-4 py-4">
+              <Skeleton className="h-8 w-8" />
+              <div className="flex-1 space-y-2">
+                <Skeleton className="h-3.5 w-32" />
+                <Skeleton className="h-3 w-48" />
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : devices.length === 0 ? (
+        <div className="flex flex-col items-center justify-center px-6 py-14 text-center">
+          <span className="flex h-11 w-11 items-center justify-center rounded-sm border border-border bg-sunken text-ink-secondary">
+            <Radio className="h-5 w-5" strokeWidth={1.6} aria-hidden="true" />
+          </span>
+          <p className="mt-4 font-display text-[1.3rem] font-medium text-ink">No scanners yet</p>
+          <p className="mt-1 max-w-[40ch] text-small text-ink-secondary">
+            Open the scanner on a gate phone and it will register itself here.
+          </p>
+          <Button asChild variant="outline" size="sm" className="mt-4">
+            <Link to="/scanner">Open scanner</Link>
+          </Button>
+        </div>
+      ) : (
+        <ul className="divide-y divide-border">
+          {devices.map((device) => (
+            <li key={device.id} className="flex items-center gap-3 px-4 py-3.5">
+              <span
+                className={cn(
+                  'flex h-8 w-8 shrink-0 items-center justify-center rounded-sm border',
+                  device.online
+                    ? 'border-success/25 bg-success-soft text-success'
+                    : 'border-border bg-sunken text-ink-tertiary'
+                )}
+              >
+                <Smartphone className="h-4 w-4" strokeWidth={1.7} aria-hidden="true" />
+              </span>
+
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <p className="truncate text-small font-medium text-ink">{device.name}</p>
+                  <span
+                    className={cn('status-dot', device.online ? 'bg-success' : 'bg-ink-tertiary')}
+                    aria-label={device.online ? 'Online' : 'Offline'}
+                  />
+                </div>
+                <p className="mt-0.5 truncate font-mono text-[10px] uppercase tracking-[0.06em] text-ink-tertiary">
+                  {device.gate} · {device.browser}
+                </p>
+              </div>
+
+              <div className="hidden items-center gap-1.5 text-tiny text-ink-secondary sm:flex">
+                <BatteryIcon level={device.battery} />
+                <span className="font-mono tabular">{device.battery}%</span>
+              </div>
+
+              <time className="w-16 shrink-0 text-right font-mono text-[10px] tabular text-ink-tertiary">
+                {formatTime(device.lastSeen)}
+              </time>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }
