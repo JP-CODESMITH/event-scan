@@ -1,15 +1,34 @@
-import { useState, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { Suspense, lazy, useEffect, useState } from 'react';
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
-import Login from './pages/Login';
-import LandingPage from './pages/LandingPage';
-import Dashboard from './pages/Dashboard';
-import { SettingsPage } from './pages/Settings';
-import { TicketsPage } from './pages/TicketsPage';
-import { ScannerDevicesPage } from './pages/ScannerDevicesPage';
-import { AuthorizedTicketsPage } from './pages/AuthorizedTicketsPage';
-import Scanner from './pages/Scanner';
+import { ThemeProvider } from './lib/theme';
 import { api } from './lib/api';
+import { Brand } from './components/layout/Brand';
+
+const LandingPage = lazy(() => import('./pages/LandingPage'));
+const Login = lazy(() => import('./pages/Login'));
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const Scanner = lazy(() => import('./pages/Scanner'));
+const TicketsPage = lazy(() => import('./pages/TicketsPage').then((m) => ({ default: m.TicketsPage })));
+const AuthorizedTicketsPage = lazy(() =>
+  import('./pages/AuthorizedTicketsPage').then((m) => ({ default: m.AuthorizedTicketsPage }))
+);
+const ScannerDevicesPage = lazy(() =>
+  import('./pages/ScannerDevicesPage').then((m) => ({ default: m.ScannerDevicesPage }))
+);
+const SettingsPage = lazy(() => import('./pages/Settings').then((m) => ({ default: m.SettingsPage })));
+
+function LoadingScreen({ label = 'Loading' }: { label?: string }) {
+  return (
+    <div className="flex min-h-screen flex-col items-center justify-center gap-5 bg-bg px-6" role="status" aria-live="polite">
+      <Brand />
+      <div className="flex items-center gap-2 text-tiny text-ink-secondary">
+        <span aria-hidden="true" className="h-3 w-3 animate-spin rounded-full border border-current border-t-transparent" />
+        {label}
+      </div>
+    </div>
+  );
+}
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const [authorized, setAuthorized] = useState<boolean | null>(null);
@@ -20,7 +39,8 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
       setAuthorized(false);
       return;
     }
-    api.verifySession(token)
+    api
+      .verifySession(token)
       .then(() => setAuthorized(true))
       .catch(() => {
         localStorage.removeItem('token');
@@ -28,68 +48,49 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
       });
   }, []);
 
-  if (authorized === null) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 animate-pulse" />
-          <p className="text-muted-foreground text-sm">Verifying session...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!authorized) {
-    return <Navigate to="/login" replace />;
-  }
+  if (authorized === null) return <LoadingScreen label="Checking your session" />;
+  if (!authorized) return <Navigate to="/login" replace />;
 
   return <>{children}</>;
 }
 
 export default function App() {
-  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
-
-  useEffect(() => {
-    document.documentElement.classList.toggle('light', theme === 'light');
-    document.documentElement.classList.toggle('dark', theme === 'dark');
-  }, [theme]);
-
-  useEffect(() => {
-    fetch('/api/settings')
-      .then(r => r.json())
-      .then(s => {
-        if (s.theme) setTheme(s.theme as 'dark' | 'light');
-      })
-      .catch(() => {});
-  }, []);
-
   return (
-    <BrowserRouter>
-      <Toaster
-        position="top-right"
-        toastOptions={{
-          style: {
-            background: 'rgba(15, 15, 35, 0.9)',
-            backdropFilter: 'blur(16px)',
-            border: '1px solid rgba(255, 255, 255, 0.1)',
-            color: '#fff',
-            borderRadius: '12px',
-          },
-          success: { iconTheme: { primary: '#10b981', secondary: '#fff' } },
-          error: { iconTheme: { primary: '#ef4444', secondary: '#fff' } },
-        }}
-      />
-      <Routes>
-        <Route path="/" element={<LandingPage />} />
-        <Route path="/login" element={<Login onLogin={() => window.location.href = '/dashboard'} />} />
-        <Route path="/scanner" element={<Scanner />} />
-        <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-        <Route path="/tickets" element={<ProtectedRoute><TicketsPage /></ProtectedRoute>} />
-        <Route path="/authorized" element={<ProtectedRoute><AuthorizedTicketsPage /></ProtectedRoute>} />
-        <Route path="/scanner-devices" element={<ProtectedRoute><ScannerDevicesPage /></ProtectedRoute>} />
-        <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </BrowserRouter>
+    <ThemeProvider>
+      <BrowserRouter>
+        <Toaster
+          position="top-center"
+          gutter={10}
+          toastOptions={{
+            duration: 3200,
+            style: {
+              background: 'hsl(var(--raised))',
+              color: 'hsl(var(--ink))',
+              border: '1px solid hsl(var(--border-strong))',
+              borderRadius: '3px',
+              fontSize: '13px',
+              fontWeight: 500,
+              padding: '10px 14px',
+              boxShadow: '0 10px 40px hsl(var(--overlay) / 0.14)',
+            },
+            success: { iconTheme: { primary: 'hsl(var(--success))', secondary: 'hsl(var(--raised))' } },
+            error: { iconTheme: { primary: 'hsl(var(--danger))', secondary: 'hsl(var(--raised))' } },
+          }}
+        />
+        <Suspense fallback={<LoadingScreen />}>
+          <Routes>
+            <Route path="/" element={<LandingPage />} />
+            <Route path="/login" element={<Login onLogin={() => (window.location.href = '/dashboard')} />} />
+            <Route path="/scanner" element={<Scanner />} />
+            <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+            <Route path="/tickets" element={<ProtectedRoute><TicketsPage /></ProtectedRoute>} />
+            <Route path="/authorized" element={<ProtectedRoute><AuthorizedTicketsPage /></ProtectedRoute>} />
+            <Route path="/scanner-devices" element={<ProtectedRoute><ScannerDevicesPage /></ProtectedRoute>} />
+            <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </Suspense>
+      </BrowserRouter>
+    </ThemeProvider>
   );
 }
