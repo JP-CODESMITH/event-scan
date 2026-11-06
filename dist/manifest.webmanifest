@@ -1,0 +1,25 @@
+{
+  "name": "Event Scan",
+  "short_name": "Event Scan",
+  "description": "Gate check-in and ticket scanning for live events.",
+  "start_url": "/scanner",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#12110e",
+  "theme_color": "#12110e",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}
