@@ -3,31 +3,38 @@ import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '../../lib/utils';
 
 const badgeVariants = cva(
-  'inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2',
+  'inline-flex items-center gap-1.5 rounded-sm border px-2 py-1 font-mono text-[10px] font-medium uppercase leading-none tracking-[0.08em]',
   {
     variants: {
       variant: {
-        default: 'border-transparent bg-primary/20 text-primary hover:bg-primary/30',
-        secondary: 'border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80',
-        destructive: 'border-transparent bg-destructive/20 text-destructive hover:bg-destructive/30',
-        success: 'border-transparent bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30',
-        warning: 'border-transparent bg-amber-500/20 text-amber-400 hover:bg-amber-500/30',
-        outline: 'text-foreground',
-        glass: 'border-white/10 bg-white/5 text-foreground backdrop-blur-sm',
+        neutral: 'border-border bg-sunken text-ink-secondary',
+        success: 'border-success/25 bg-success-soft text-success',
+        warning: 'border-warning/25 bg-warning-soft text-warning',
+        danger: 'border-danger/25 bg-danger-soft text-danger',
+        info: 'border-info/25 bg-info-soft text-info',
+        accent: 'border-accent/25 bg-accent-soft text-accent-strong',
+        outline: 'border-border-strong bg-transparent text-ink-secondary',
       },
     },
     defaultVariants: {
-      variant: 'default',
+      variant: 'neutral',
     },
   }
 );
 
 export interface BadgeProps
-  extends React.HTMLAttributes<HTMLDivElement>,
-    VariantProps<typeof badgeVariants> {}
+  extends React.HTMLAttributes<HTMLSpanElement>,
+    VariantProps<typeof badgeVariants> {
+  dot?: boolean;
+}
 
-function Badge({ className, variant, ...props }: BadgeProps) {
-  return <div className={cn(badgeVariants({ variant }), className)} {...props} />;
+function Badge({ className, variant, dot = false, children, ...props }: BadgeProps) {
+  return (
+    <span className={cn(badgeVariants({ variant }), className)} {...props}>
+      {dot && <span aria-hidden="true" className="status-dot bg-current" />}
+      {children}
+    </span>
+  );
 }
 
 export { Badge, badgeVariants };
