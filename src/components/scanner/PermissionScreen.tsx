@@ -1,79 +1,91 @@
-import { Scan, Pen } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { ArrowLeft, Camera, Keyboard } from 'lucide-react';
 import { Button } from '../ui/button';
+import { Brand } from '../layout/Brand';
 
 interface PermissionScreenProps {
   onStart: () => void;
   onManual?: () => void;
   loading?: boolean;
   insecure?: boolean;
+  gate?: string;
 }
 
-export default function PermissionScreen({ onStart, onManual, loading, insecure }: PermissionScreenProps) {
+const steps = [
+  'Allow camera access.',
+  'Frame the ticket QR.',
+  'Read the verdict, then next.',
+];
+
+export default function PermissionScreen({ onStart, onManual, loading, insecure, gate }: PermissionScreenProps) {
   return (
-    <div className="relative min-h-screen flex flex-col items-center justify-center overflow-hidden bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 p-4">
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -right-40 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl" />
-        <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl" />
-      </div>
+    <div className="gate gate-screen relative flex min-h-[100dvh] flex-col">
+      <header className="safe-top flex items-center justify-between border-b border-border px-5 pb-3">
+        <Link to="/" aria-label="Back to Event Scan home" className="flex items-center gap-2">
+          <Brand compact />
+          <span className="text-small font-medium text-ink">Gate scanner</span>
+        </Link>
+        <Link
+          to="/"
+          className="flex h-11 items-center gap-1.5 rounded-sm px-2 text-tiny text-ink-secondary transition-colors hover:text-ink focus-visible:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+        >
+          <ArrowLeft className="h-4 w-4" strokeWidth={1.7} aria-hidden="true" />
+          Leave
+        </Link>
+      </header>
 
-      <div className="relative w-full max-w-sm text-center">
-        <div className="flex justify-center mb-6">
-          <div className="flex items-center justify-center w-20 h-20 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 shadow-lg shadow-blue-500/25">
-            <Scan className="w-10 h-10 text-white" />
+      <main className="flex flex-1 items-center px-5 py-8">
+        <div className="mx-auto w-full max-w-[400px]">
+          <div className="flex items-center justify-between">
+            <p className="eyebrow">Gate check-in</p>
+            <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-ink-tertiary">{gate || 'Back of the Church'}</p>
           </div>
-        </div>
 
-        <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-blue-400 to-indigo-400 bg-clip-text text-transparent mb-2">
-          EVENT SCAN
-        </h1>
-        <p className="text-lg text-muted-foreground mb-2">Ready to Scan</p>
-        <p className="text-sm text-muted-foreground/60 mb-8 max-w-xs mx-auto">
-          Press the button below to start scanning
-        </p>
+          <h1 className="mt-4 font-display text-[3.1rem] font-medium leading-[0.92] tracking-[-0.045em] text-ink">
+            Scan at
+            <br />
+            the door.
+          </h1>
+          <p className="mt-4 max-w-[34ch] text-base text-ink-secondary">
+            Point this phone at a ticket QR. The verdict takes over the screen, so nobody has to squint.
+          </p>
 
-        {insecure && (
-          <div className="mb-4 p-3 rounded-xl bg-amber-500/20 border border-amber-500/30 text-center">
-            <p className="text-amber-400 text-sm font-medium">HTTPS Required for Camera</p>
-            <p className="text-amber-300/60 text-xs mt-1">
-              Access via <span className="font-mono text-amber-300">https://</span> to enable camera access
-            </p>
-          </div>
-        )}
-
-        <div className="space-y-3">
-          <Button
-            onClick={onStart}
-            disabled={loading}
-            size="lg"
-            className="w-full text-base h-12 gap-2"
-          >
-            {loading ? (
-              <>
-                <span className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
-                Requesting Camera...
-              </>
-            ) : (
-              <>
-                <Scan className="w-5 h-5" />
-                Start Scanner
-              </>
-            )}
-          </Button>
-
-          {onManual && (
-            <Button
-              onClick={onManual}
-              disabled={loading}
-              variant="outline"
-              size="lg"
-              className="w-full text-base h-12 gap-2"
-            >
-              <Pen className="w-5 h-5" />
-              Manual Entry
-            </Button>
+          {insecure && (
+            <div className="mt-6 rounded-sm border border-warning/30 bg-warning-soft px-3.5 py-3">
+              <p className="text-tiny font-medium text-warning">This page needs HTTPS for the camera.</p>
+              <p className="mt-1 text-small text-ink-secondary">
+                Open the secure address printed by the server, then allow the certificate and reload.
+              </p>
+            </div>
           )}
+
+          <ol className="mt-8 space-y-3 border-y border-border py-5">
+            {steps.map((step, index) => (
+              <li key={step} className="flex items-baseline gap-3">
+                <span className="font-mono text-[11px] tabular text-ink-tertiary">0{index + 1}</span>
+                <span className="text-small text-ink-secondary">{step}</span>
+              </li>
+            ))}
+          </ol>
+
+          <div className="mt-7 space-y-2.5">
+            <Button onClick={onStart} disabled={loading} size="lg" className="w-full">
+              <Camera className="h-4 w-4" strokeWidth={1.8} aria-hidden="true" />
+              {loading ? 'Opening camera' : 'Start camera'}
+            </Button>
+            {onManual && (
+              <Button onClick={onManual} disabled={loading} variant="outline" size="lg" className="w-full">
+                <Keyboard className="h-4 w-4" strokeWidth={1.8} aria-hidden="true" />
+                Enter a code instead
+              </Button>
+            )}
+          </div>
+
+          <p className="mt-6 text-center text-tiny leading-relaxed text-ink-tertiary">
+            The camera stays on this phone. Nothing is recorded until a ticket is scanned.
+          </p>
         </div>
-      </div>
+      </main>
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 export interface CameraState {
   status: 'idle' | 'prompting' | 'granted' | 'denied' | 'error' | 'unavailable';
@@ -52,7 +52,7 @@ export function useCameraPermission() {
       let hasTorch = false;
       try {
         const capabilities = track.getCapabilities();
-        hasTorch = !!capabilities?.torch;
+        hasTorch = !!(capabilities as MediaTrackCapabilities & { torch?: boolean })?.torch;
       } catch {}
 
       const allDevices = await navigator.mediaDevices.enumerateDevices();
@@ -124,7 +124,7 @@ export function useCameraPermission() {
         let hasTorch = false;
         try {
           const capabilities = track.getCapabilities();
-          hasTorch = !!capabilities?.torch;
+          hasTorch = !!(capabilities as MediaTrackCapabilities & { torch?: boolean })?.torch;
         } catch {}
 
         setState(s => ({
